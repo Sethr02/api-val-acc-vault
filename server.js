@@ -15,20 +15,26 @@ app.get('/', (req, res) => {
 });
 
 // API route for fetching Valorant account data
-app.get('/fetch-data/:name/:tagline', async (req, res) => {
+app.get('/api/fetch-data/:name/:tagline', async (req, res) => {
     const { name, tagline } = req.params;
-    const apiUrl = `https://api.henrikdev.xyz/valorant/v2/account/${name}/${tagline}?force=false`;
 
     try {
-        const response = await axios.get(apiUrl, {
+        const response = await axios.get(`https://api.henrikdev.xyz/valorant/v2/account/${name}/${tagline}?force=false`, {
             headers: {
                 'accept': 'application/json',
                 'Authorization': apiKey
             }
         });
-        res.json(response.data);
+
+        // Check if data exists
+        if (response.data.data) {
+            res.json(response.data.data);
+        } else {
+            res.status(404).json({ message: 'Account data not found' });
+        }
     } catch (error) {
-        res.status(500).json({ error: 'Failed to fetch account data' });
+        console.error('Error fetching account data:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
     }
 });
 
