@@ -48,7 +48,7 @@ app.get('/api/mmr/:puuid', async (req, res) => {
     const { puuid } = req.params;
 
     try {
-        const response = await axios.get(`https://api.henrikdev.xyz/valorant/v2/by-puuid/mmr/eu/${puuid}?season=e9a1`, {
+        const response = await axios.get(`https://api.henrikdev.xyz/valorant/v2/by-puuid/mmr/eu/${puuid}?season=e9a2`, {
             headers: {
                 'accept': 'application/json',
                 'Authorization': apiKey
