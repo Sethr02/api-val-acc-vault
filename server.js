@@ -1,7 +1,13 @@
 const express = require('express');
 const axios = require('axios');
+const cors = require('cors'); // Import cors
 const app = express();
 const port = process.env.PORT || 3000;
+
+// Use CORS to allow requests from your Netlify frontend
+app.use(cors({
+    origin: 'https://val-acc-vault.netlify.app' // Replace with your Netlify domain
+}));
 
 // Middleware to handle JSON requests
 app.use(express.json());
