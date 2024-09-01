@@ -1,7 +1,13 @@
 const express = require('express');
 const axios = require('axios');
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
+
+// Middleware to handle JSON requests
+app.use(express.json());
+
+// API Key (consider using environment variables for sensitive info)
+const apiKey = 'HDEV-bf3ea3ae-86ae-4b39-877d-1ef3806fef8a';
 
 // Root route
 app.get('/', (req, res) => {
@@ -17,7 +23,7 @@ app.get('/fetch-data/:name/:tagline', async (req, res) => {
         const response = await axios.get(apiUrl, {
             headers: {
                 'accept': 'application/json',
-                'Authorization': 'HDEV-bf3ea3ae-86ae-4b39-877d-1ef3806fef8a'
+                'Authorization': apiKey
             }
         });
         res.json(response.data);
@@ -26,29 +32,29 @@ app.get('/fetch-data/:name/:tagline', async (req, res) => {
     }
 });
 
-app.get('/fetch-mmr-data/:puuid', async (req, res) => {
+app.get('/api/mmr/:puuid', async (req, res) => {
     const { puuid } = req.params;
 
     try {
         const response = await axios.get(`https://api.henrikdev.xyz/valorant/v2/by-puuid/mmr/eu/${puuid}?season=e9a1`, {
             headers: {
                 'accept': 'application/json',
-                'Authorization': 'HDEV-bf3ea3ae-86ae-4b39-877d-1ef3806fef8a'
+                'Authorization': apiKey
             }
         });
 
-        const data = response.data;
-
-        // Log the fetched MMR data to the console
-        console.log('Fetched MMR Data:', data);
-
-        res.json(data.data.current_data);
+        // Check if current_data exists
+        if (response.data.data && response.data.data.current_data) {
+            res.json(response.data.data.current_data);
+        } else {
+            res.status(404).json({ message: 'current_data is missing in the response' });
+        }
     } catch (error) {
         console.error('Error fetching MMR data:', error);
-        res.status(500).json({ error: 'Failed to fetch MMR data' });
+        res.status(500).json({ error: 'Internal Server Error' });
     }
 });
 
 app.listen(port, () => {
-    console.log(`Server is running on http://localhost:${port}`);
+    console.log(`Server running on port ${port}`);
 });
