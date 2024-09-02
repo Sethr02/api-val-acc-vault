@@ -25,7 +25,7 @@ app.get('/api/fetch-data/:name/:tagline', async (req, res) => {
     const { name, tagline } = req.params;
 
     try {
-        const response = await axios.get(`https://api.henrikdev.xyz/valorant/v2/account/${name}/${tagline}?force=false`, {
+        const response = await axios.get(`https://api.henrikdev.xyz/valorant/v2/account/${name}/${tagline}`, {
             headers: {
                 'accept': 'application/json',
                 'Authorization': apiKey
@@ -44,11 +44,11 @@ app.get('/api/fetch-data/:name/:tagline', async (req, res) => {
     }
 });
 
-app.get('/api/mmr/:puuid', async (req, res) => {
-    const { puuid } = req.params;
+app.get('/api/mmr/:region/:puuid', async (req, res) => {
+    const { region, puuid } = req.params;
 
     try {
-        const response = await axios.get(`https://api.henrikdev.xyz/valorant/v2/by-puuid/mmr/eu/${puuid}?season=e9a2`, {
+        const response = await axios.get(`https://api.henrikdev.xyz/valorant/v2/by-puuid/mmr/${region}/${puuid}`, {
             headers: {
                 'accept': 'application/json',
                 'Authorization': apiKey
