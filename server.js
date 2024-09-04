@@ -67,6 +67,54 @@ app.get('/api/mmr/:region/:puuid', async (req, res) => {
     }
 });
 
+
+// API route for fetching RR gains/losses in recent matches
+app.get('/api/rr-gains-losses/:region/:puuid', async (req, res) => {
+    const { region, puuid } = req.params;
+
+    try {
+        const response = await axios.get(`https://api.henrikdev.xyz/valorant/v1/mmr-history/${region}/${puuid}`, {
+            headers: {
+                'accept': 'application/json',
+                'Authorization': apiKey
+            }
+        });
+
+        if (response.data.data) {
+            res.json(response.data.data);
+        } else {
+            res.status(404).json({ message: 'RR data not found' });
+        }
+    } catch (error) {
+        console.error('Error fetching RR data:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// API route for fetching match history
+app.get('/api/match-history/:region/:puuid', async (req, res) => {
+    const { region, puuid } = req.params;
+
+    try {
+        const response = await axios.get(`https://api.henrikdev.xyz/valorant/v3/by-puuid/matches/${region}/${puuid}`, {
+            headers: {
+                'accept': 'application/json',
+                'Authorization': apiKey
+            }
+        });
+
+        if (response.data.data) {
+            res.json(response.data.data);
+        } else {
+            res.status(404).json({ message: 'Match history not found' });
+        }
+    } catch (error) {
+        console.error('Error fetching match history:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+
 app.listen(port, () => {
     console.log(`Server running on port ${port}`);
 });
