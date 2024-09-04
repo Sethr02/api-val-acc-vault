@@ -98,7 +98,7 @@ app.get('/api/match-history/:region/:puuid', async (req, res) => {
     const { region, puuid } = req.params;
 
     try {
-        const response = await axios.get(`https://api.henrikdev.xyz/valorant/v3/by-puuid/matches/${region}/${puuid}`, {
+        const response = await axios.get(`https://api.henrikdev.xyz/valorant/v1/by-puuid/stored-matches/${region}/${puuid}?page=1&size=5`, {
             headers: {
                 'accept': 'application/json',
                 'Authorization': apiKey
