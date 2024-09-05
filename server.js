@@ -14,9 +14,9 @@ app.use(express.json());
 
 // API Key (consider using environment variables for sensitive info)
 const apiKey = 'HDEV-bf3ea3ae-86ae-4b39-877d-1ef3806fef8a';
-//8a5c11e4-40a7-5450-bce2-c854f807ba37
+//8a5c11e4-40a7-5450-bce2-c854f807ba37 
 //https://api-val-acc-vault-production.up.railway.app/api/rr-gains-losses/eu/8a5c11e4-40a7-5450-bce2-c854f807ba37
-//https://api-val-acc-vault-production.up.railway.app/api/fetch-data/Seth/VNG0
+//https://api-val-acc-vault-production.up.railway.app/api/match-history/eu/8a5c11e4-40a7-5450-bce2-c854f807ba37
 // Root route
 app.get('/', (req, res) => {
     res.send('Hello, World!');
@@ -93,12 +93,13 @@ app.get('/api/rr-gains-losses/:region/:puuid', async (req, res) => {
     }
 });
 
+//https://api.henrikdev.xyz/valorant/v1/by-puuid/stored-matches/eu/8a5c11e4-40a7-5450-bce2-c854f807ba37?mode=competitive&page=1&size=5
 // API route for fetching match history
 app.get('/api/match-history/:region/:puuid', async (req, res) => {
     const { region, puuid } = req.params;
 
     try {
-        const response = await axios.get(`https://api.henrikdev.xyz/valorant/v1/by-puuid/stored-matches/${region}/${puuid}?page=1&size=5`, {
+        const response = await axios.get(`https://api.henrikdev.xyz/valorant/v1/by-puuid/stored-matches/${region}/${puuid}?mode=competitive&page=1&size=5`, {
             headers: {
                 'accept': 'application/json',
                 'Authorization': apiKey
