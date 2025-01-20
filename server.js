@@ -10,7 +10,7 @@ const cache = new NodeCache({ stdTTL: 600 });
 
 // Use CORS to allow requests from your Netlify frontend
 app.use(cors({
-    origin: 'https://val-acc-vault.netlify.app'
+    origin: ['https://val-acc-vault.netlify.app', 'http://localhost:5173']
 }));
 
 // Middleware to handle JSON requests
