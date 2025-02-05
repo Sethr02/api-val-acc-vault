@@ -4,6 +4,8 @@ const cors = require('cors');
 const NodeCache = require('node-cache');
 const app = express();
 const port = process.env.PORT || 3000;
+const { getDatabase, ref, update, get } = require('firebase/database');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // Initialize cache with a TTL (time to live) of 10 minutes (600 seconds)
 const cache = new NodeCache({ stdTTL: 600 });
@@ -22,6 +24,70 @@ const apiKey = 'HDEV-bf3ea3ae-86ae-4b39-877d-1ef3806fef8a';
 // Root route
 app.get('/', (req, res) => {
     res.send('Hello, World!');
+});
+
+// Add new endpoint
+app.post('/api/update-accounts', async (req, res) => {
+    const BATCH_SIZE = 5; // 5 accounts per batch
+    const DELAY_BETWEEN_BATCHES = 60000; // 60 seconds between batches
+    const UPDATE_THRESHOLD = 3600000; // 1 hour in milliseconds
+
+    try {
+        const db = getDatabase();
+        const accountsRef = ref(db, 'accounts');
+        const snapshot = await get(accountsRef);
+
+        if (!snapshot.exists()) {
+            return res.status(404).json({ message: 'No accounts found' });
+        }
+
+        const accounts = Object.entries(snapshot.val()).filter(([_, account]) => {
+            const lastUpdated = account.lastUpdated || 0;
+            return Date.now() - lastUpdated > UPDATE_THRESHOLD;
+        });
+
+        // Process accounts in batches
+        for (let i = 0; i < accounts.length; i += BATCH_SIZE) {
+            const batch = accounts.slice(i, i + BATCH_SIZE);
+
+            // Process each account in batch
+            const updates = await Promise.all(batch.map(async ([key, account]) => {
+                try {
+                    const mmrResponse = await axios.get(
+                        `https://api.henrikdev.xyz/valorant/v2/by-puuid/mmr/${account.region}/${account.puuid}`,
+                        { headers: { 'Authorization': apiKey } }
+                    );
+
+                    if (mmrResponse.data.data?.current_data) {
+                        const { currenttier_patched: rank, ranking_in_tier: rr } = mmrResponse.data.data.current_data;
+                        return [key, { rank, rr, lastUpdated: Date.now() }];
+                    }
+                } catch (error) {
+                    console.error(`Failed to update account ${account.riotId}:`, error);
+                    return null;
+                }
+            }));
+
+            // Update Firebase
+            const validUpdates = updates.filter(Boolean);
+            if (validUpdates.length > 0) {
+                const updateObject = Object.fromEntries(
+                    validUpdates.map(([key, data]) => [`accounts/${key}`, data])
+                );
+                await update(ref(db), updateObject);
+            }
+
+            // Wait before processing next batch
+            if (i + BATCH_SIZE < accounts.length) {
+                await sleep(DELAY_BETWEEN_BATCHES);
+            }
+        }
+
+        res.json({ message: 'Accounts update completed' });
+    } catch (error) {
+        console.error('Error updating accounts:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
 });
 
 // API route for fetching Valorant account data
