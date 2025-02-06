@@ -4,7 +4,8 @@ const cors = require('cors');
 const NodeCache = require('node-cache');
 const app = express();
 const port = process.env.PORT || 3000;
-const { getDatabase, ref, update, get } = require('firebase/database');
+const { initializeApp } = require('firebase/app');
+const { getDatabase, ref, update } = require('firebase/database');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // Initialize cache with a TTL (time to live) of 10 minutes (600 seconds)
@@ -26,6 +27,20 @@ app.get('/', (req, res) => {
     res.send('Hello, World!');
 });
 
+const firebaseConfig = {
+    apiKey: "AIzaSyAllLgyGhxcx_zdnvRGp36gcejs-4nfeNY",
+    authDomain: "account-vault-bb1e9.firebaseapp.com",
+    databaseURL: "https://account-vault-bb1e9-default-rtdb.firebaseio.com",
+    projectId: "account-vault-bb1e9",
+    storageBucket: "account-vault-bb1e9.appspot.com",
+    messagingSenderId: "792643476423",
+    appId: "1:792643476423:web:284b4207cd51ccb10f97e2",
+    measurementId: "G-LCBXHB3C1S",
+  };
+  
+  const firebaseApp = initializeApp(firebaseConfig);
+  const db = getDatabase(firebaseApp);
+
 // Add new endpoint
 app.post('/api/update-accounts', async (req, res) => {
     const BATCH_SIZE = 5; // 5 accounts per batch
@@ -33,7 +48,6 @@ app.post('/api/update-accounts', async (req, res) => {
     const UPDATE_THRESHOLD = 3600000; // 1 hour in milliseconds
 
     try {
-        const db = getDatabase();
         const accountsRef = ref(db, 'accounts');
         const snapshot = await get(accountsRef);
 
