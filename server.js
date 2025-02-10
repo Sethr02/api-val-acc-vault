@@ -5,7 +5,7 @@ const NodeCache = require('node-cache');
 const app = express();
 const port = process.env.PORT || 3000;
 const { initializeApp } = require('firebase/app');
-const { getDatabase, ref, update } = require('firebase/database');
+const { getDatabase, ref, update, get } = require('firebase/database');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // Initialize cache with a TTL (time to live) of 10 minutes (600 seconds)
@@ -43,66 +43,42 @@ const firebaseConfig = {
 
 // Add new endpoint
 app.post('/api/update-accounts', async (req, res) => {
-    const BATCH_SIZE = 5; // 5 accounts per batch
-    const DELAY_BETWEEN_BATCHES = 60000; // 60 seconds between batches
-    const UPDATE_THRESHOLD = 3600000; // 1 hour in milliseconds
-
-    try {
-        const accountsRef = ref(db, 'accounts');
-        const snapshot = await get(accountsRef);
-
-        if (!snapshot.exists()) {
-            return res.status(404).json({ message: 'No accounts found' });
-        }
-
-        const accounts = Object.entries(snapshot.val()).filter(([_, account]) => {
-            const lastUpdated = account.lastUpdated || 0;
-            return Date.now() - lastUpdated > UPDATE_THRESHOLD;
-        });
-
-        // Process accounts in batches
-        for (let i = 0; i < accounts.length; i += BATCH_SIZE) {
-            const batch = accounts.slice(i, i + BATCH_SIZE);
-
-            // Process each account in batch
-            const updates = await Promise.all(batch.map(async ([key, account]) => {
-                try {
-                    const mmrResponse = await axios.get(
-                        `https://api.henrikdev.xyz/valorant/v2/by-puuid/mmr/${account.region}/${account.puuid}`,
-                        { headers: { 'Authorization': apiKey } }
-                    );
-
-                    if (mmrResponse.data.data?.current_data) {
-                        const { currenttier_patched: rank, ranking_in_tier: rr } = mmrResponse.data.data.current_data;
-                        return [key, { rank, rr, lastUpdated: Date.now() }];
-                    }
-                } catch (error) {
-                    console.error(`Failed to update account ${account.riotId}:`, error);
-                    return null;
-                }
-            }));
-
-            // Update Firebase
-            const validUpdates = updates.filter(Boolean);
-            if (validUpdates.length > 0) {
-                const updateObject = Object.fromEntries(
-                    validUpdates.map(([key, data]) => [`accounts/${key}`, data])
-                );
-                await update(ref(db), updateObject);
-            }
-
-            // Wait before processing next batch
-            if (i + BATCH_SIZE < accounts.length) {
-                await sleep(DELAY_BETWEEN_BATCHES);
-            }
-        }
-
-        res.json({ message: 'Accounts update completed' });
-    } catch (error) {
-        console.error('Error updating accounts:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+    const { accounts } = req.body;
+    
+    if (!accounts || !Array.isArray(accounts)) {
+      return res.status(400).json({ error: 'Invalid request body' });
     }
-});
+  
+    try {
+      // Process accounts in batches
+      const batchSize = 5;
+      const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+  
+      for (let i = 0; i < accounts.length; i += batchSize) {
+        const batch = accounts.slice(i, i + batchSize);
+        
+        // Process batch
+        await Promise.all(batch.map(async account => {
+          const { region, puuid } = account;
+          const response = await axios.get(
+            `https://api.henrikdev.xyz/valorant/v2/by-puuid/mmr/${region}/${puuid}`,
+            { headers: { 'Authorization': apiKey }}
+          );
+          return response.data;
+        }));
+  
+        // Wait 60s between batches to respect rate limit
+        if (i + batchSize < accounts.length) {
+          await delay(60000);
+        }
+      }
+  
+      res.json({ message: 'Accounts updated successfully' });
+    } catch (error) {
+      console.error('Error updating accounts:', error);
+      res.status(500).json({ error: 'Failed to update accounts' });
+    }
+  });
 
 // API route for fetching Valorant account data
 app.get('/api/fetch-data/:name/:tagline', async (req, res) => {
@@ -223,6 +199,79 @@ app.get('/api/match-history/:region/:puuid', async (req, res) => {
     } catch (error) {
         console.error('Error fetching match history:', error);
         res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+const testAccounts = [
+    {
+        id: 'test1',
+        name: 'TestAccount1',
+        region: 'na',
+        puuid: 'test-puuid-1',
+        currentRank: 'Gold 1',
+        currentRR: 50,
+        lastUpdated: new Date().toISOString()
+    },
+    {
+        id: 'test2',
+        name: 'TestAccount2',
+        region: 'eu',
+        puuid: 'test-puuid-2',
+        currentRank: 'Silver 3',
+        currentRR: 75,
+        lastUpdated: new Date().toISOString()
+    }
+];
+
+// Initialize test data in Firebase
+const initializeTestData = async () => {
+    try {
+        const accountsRef = ref(db, 'test_accounts');
+        for (const account of testAccounts) {
+            await update(ref(db, `test_accounts/${account.id}`), account);
+        }
+        console.log('Test data initialized');
+    } catch (error) {
+        console.error('Error initializing test data:', error);
+    }
+};
+
+// Call this function when server starts
+initializeTestData();
+
+// Test cron job that runs every minute
+const cron = require('node-cron');
+
+cron.schedule('* * * * *', async () => {
+    console.log('Running test cron job...');
+    try {
+        const testAccountsRef = ref(db, 'test_accounts');
+        const snapshot = await get(testAccountsRef);
+        
+        if (!snapshot.exists()) {
+            console.log('No test accounts found');
+            return;
+        }
+
+        const accounts = Object.values(snapshot.val());
+        
+        for (const account of accounts) {
+            // Simulate random RR changes (-20 to +20)
+            const rrChange = Math.floor(Math.random() * 41) - 20;
+            const newRR = Math.max(0, Math.min(100, account.currentRR + rrChange));
+            
+            // Update the account's data
+            await update(ref(db, `test_accounts/${account.id}`), {
+                currentRR: newRR,
+                lastUpdated: new Date().toISOString()
+            });
+            
+            console.log(`Updated test account ${account.id}: RR changed by ${rrChange} to ${newRR}`);
+        }
+        
+        console.log('Test cron job completed');
+    } catch (error) {
+        console.error('Error in test cron job:', error);
     }
 });
 
