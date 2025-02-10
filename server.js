@@ -7,6 +7,7 @@ const port = process.env.PORT || 3000;
 const { initializeApp } = require('firebase/app');
 const { getDatabase, ref, update, get } = require('firebase/database');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+const cron = require('node-cron');
 
 // Initialize cache with a TTL (time to live) of 10 minutes (600 seconds)
 const cache = new NodeCache({ stdTTL: 600 });
@@ -202,48 +203,8 @@ app.get('/api/match-history/:region/:puuid', async (req, res) => {
     }
 });
 
-const testAccounts = [
-    {
-        id: 'test1',
-        name: 'TestAccount1',
-        region: 'na',
-        puuid: 'test-puuid-1',
-        currentRank: 'Gold 1',
-        currentRR: 50,
-        lastUpdated: new Date().toISOString()
-    },
-    {
-        id: 'test2',
-        name: 'TestAccount2',
-        region: 'eu',
-        puuid: 'test-puuid-2',
-        currentRank: 'Silver 3',
-        currentRR: 75,
-        lastUpdated: new Date().toISOString()
-    }
-];
-
-// Initialize test data in Firebase
-const initializeTestData = async () => {
-    try {
-        const accountsRef = ref(db, 'test_accounts');
-        for (const account of testAccounts) {
-            await update(ref(db, `test_accounts/${account.id}`), account);
-        }
-        console.log('Test data initialized');
-    } catch (error) {
-        console.error('Error initializing test data:', error);
-    }
-};
-
-// Call this function when server starts
-initializeTestData();
-
-// Test cron job that runs every minute
-const cron = require('node-cron');
-
-// Leaderboard update cron job - runs every 2 minutes
-cron.schedule('*/2 * * * *', async () => {
+// Leaderboard update cron job - runs every hour
+cron.schedule('0 * * * *', async () => {
     console.log('Running leaderboard update...');
     try {
         // Get all accounts from leaderboard
@@ -294,7 +255,13 @@ cron.schedule('*/2 * * * *', async () => {
             }
         }
         
-        console.log('Leaderboard update completed');
+        // Calculate and update next scheduled update time (1 hour from now)
+        const nextUpdate = Date.now() + (60 * 60 * 1000); // Current time + 1 hour in milliseconds
+        await update(ref(db), {
+            nextScheduledUpdate: nextUpdate.toString()
+        });
+        
+        console.log('Leaderboard update completed. Next update scheduled for:', new Date(nextUpdate).toISOString());
     } catch (error) {
         console.error('Error in leaderboard update:', error);
     }
