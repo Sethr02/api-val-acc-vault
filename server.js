@@ -242,39 +242,63 @@ initializeTestData();
 // Test cron job that runs every minute
 const cron = require('node-cron');
 
-cron.schedule('* * * * *', async () => {
-    console.log('Running test cron job...');
+// Leaderboard update cron job - runs every 2 minutes
+cron.schedule('*/2 * * * *', async () => {
+    console.log('Running leaderboard update...');
     try {
-        const testAccountsRef = ref(db, 'test_accounts');
-        const snapshot = await get(testAccountsRef);
+        // Get all accounts from leaderboard
+        const leaderboardRef = ref(db, 'leaderboard');
+        const snapshot = await get(leaderboardRef);
         
         if (!snapshot.exists()) {
-            console.log('No test accounts found');
+            console.log('No leaderboard accounts found');
             return;
         }
 
-        const accounts = Object.values(snapshot.val());
+        const accounts = Object.entries(snapshot.val());
         
-        for (const account of accounts) {
-            // Simulate random RR changes (-20 to +20)
-            const rrChange = Math.floor(Math.random() * 41) - 20;
-            const newRR = Math.max(0, Math.min(100, account.currentRR + rrChange));
+        // Process accounts in batches to respect rate limits
+        const batchSize = 5;
+        
+        for (let i = 0; i < accounts.length; i += batchSize) {
+            const batch = accounts.slice(i, i + batchSize);
             
-            // Update the account's data
-            await update(ref(db, `test_accounts/${account.id}`), {
-                currentRR: newRR,
-                lastUpdated: new Date().toISOString()
-            });
+            // Process batch
+            await Promise.all(batch.map(async ([puuid, account]) => {
+                try {
+                    const response = await axios.get(
+                        `https://api.henrikdev.xyz/valorant/v2/by-puuid/mmr/${account.region}/${puuid}`,
+                        { headers: { 'Authorization': apiKey }}
+                    );
+                    
+                    if (response.data.data && response.data.data.current_data) {
+                        const mmrData = response.data.data.current_data;
+                        
+                        // Update the account's MMR data in Firebase
+                        await update(ref(db, `leaderboard/${puuid}`), {
+                            rank: mmrData.currenttierpatched,
+                            rr: mmrData.ranking_in_tier,
+                            lastUpdated: new Date().toISOString()
+                        });
+                        
+                        console.log(`Updated leaderboard account: ${account.riotId}`);
+                    }
+                } catch (error) {
+                    console.error(`Error updating leaderboard account ${account.riotId}:`, error.message);
+                }
+            }));
             
-            console.log(`Updated test account ${account.id}: RR changed by ${rrChange} to ${newRR}`);
+            // Wait 60s between batches to respect rate limit
+            if (i + batchSize < accounts.length) {
+                await sleep(60000);
+            }
         }
         
-        console.log('Test cron job completed');
+        console.log('Leaderboard update completed');
     } catch (error) {
-        console.error('Error in test cron job:', error);
+        console.error('Error in leaderboard update:', error);
     }
 });
-
 
 app.listen(port, () => {
     console.log(`Server running on port ${port}`);
