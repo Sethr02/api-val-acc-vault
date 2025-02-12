@@ -37,49 +37,49 @@ const firebaseConfig = {
     messagingSenderId: "792643476423",
     appId: "1:792643476423:web:284b4207cd51ccb10f97e2",
     measurementId: "G-LCBXHB3C1S",
-  };
-  
-  const firebaseApp = initializeApp(firebaseConfig);
-  const db = getDatabase(firebaseApp);
+};
+
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getDatabase(firebaseApp);
 
 // Add new endpoint
 app.post('/api/update-accounts', async (req, res) => {
     const { accounts } = req.body;
-    
+
     if (!accounts || !Array.isArray(accounts)) {
-      return res.status(400).json({ error: 'Invalid request body' });
+        return res.status(400).json({ error: 'Invalid request body' });
     }
-  
+
     try {
-      // Process accounts in batches
-      const batchSize = 5;
-      const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-  
-      for (let i = 0; i < accounts.length; i += batchSize) {
-        const batch = accounts.slice(i, i + batchSize);
-        
-        // Process batch
-        await Promise.all(batch.map(async account => {
-          const { region, puuid } = account;
-          const response = await axios.get(
-            `https://api.henrikdev.xyz/valorant/v2/by-puuid/mmr/${region}/${puuid}`,
-            { headers: { 'Authorization': apiKey }}
-          );
-          return response.data;
-        }));
-  
-        // Wait 60s between batches to respect rate limit
-        if (i + batchSize < accounts.length) {
-          await delay(60000);
+        // Process accounts in batches
+        const batchSize = 5;
+        const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+        for (let i = 0; i < accounts.length; i += batchSize) {
+            const batch = accounts.slice(i, i + batchSize);
+
+            // Process batch
+            await Promise.all(batch.map(async account => {
+                const { region, puuid } = account;
+                const response = await axios.get(
+                    `https://api.henrikdev.xyz/valorant/v2/by-puuid/mmr/${region}/${puuid}`,
+                    { headers: { 'Authorization': apiKey } }
+                );
+                return response.data;
+            }));
+
+            // Wait 60s between batches to respect rate limit
+            if (i + batchSize < accounts.length) {
+                await delay(60000);
+            }
         }
-      }
-  
-      res.json({ message: 'Accounts updated successfully' });
+
+        res.json({ message: 'Accounts updated successfully' });
     } catch (error) {
-      console.error('Error updating accounts:', error);
-      res.status(500).json({ error: 'Failed to update accounts' });
+        console.error('Error updating accounts:', error);
+        res.status(500).json({ error: 'Failed to update accounts' });
     }
-  });
+});
 
 // API route for fetching Valorant account data
 app.get('/api/fetch-data/:name/:tagline', async (req, res) => {
@@ -210,57 +210,68 @@ cron.schedule('0 * * * *', async () => {
         // Get all accounts from leaderboard
         const leaderboardRef = ref(db, 'leaderboard');
         const snapshot = await get(leaderboardRef);
-        
+
         if (!snapshot.exists()) {
             console.log('No leaderboard accounts found');
             return;
         }
 
         const accounts = Object.entries(snapshot.val());
-        
+
         // Process accounts in batches to respect rate limits
-        const batchSize = 5;
-        
+        const batchSize = 15;
+
         for (let i = 0; i < accounts.length; i += batchSize) {
             const batch = accounts.slice(i, i + batchSize);
-            
+
             // Process batch
             await Promise.all(batch.map(async ([puuid, account]) => {
                 try {
                     const response = await axios.get(
                         `https://api.henrikdev.xyz/valorant/v2/by-puuid/mmr/${account.region}/${puuid}`,
-                        { headers: { 'Authorization': apiKey }}
+                        { headers: { 'Authorization': apiKey } }
                     );
-                    
+
                     if (response.data.data && response.data.data.current_data) {
                         const mmrData = response.data.data.current_data;
-                        
+                        const currentAccount = account;
+
+                        const logEntry = {
+                            timestamp: new Date().toISOString(),
+                            oldRank: currentAccount.rank || 'Unknown',
+                            newRank: mmrData.currenttierpatched,
+                            oldRR: currentAccount.rr || 0,
+                            newRR: mmrData.ranking_in_tier
+                        };
+
                         // Update the account's MMR data in Firebase
                         await update(ref(db, `leaderboard/${puuid}`), {
                             rank: mmrData.currenttierpatched,
                             rr: mmrData.ranking_in_tier,
-                            lastUpdated: new Date().toISOString()
+                            lastUpdated: new Date().toISOString(),
+                            updatesCounter: (currentAccount.updatesCounter || 0) + 1,
+                            [`logs/${Date.now()}`]: logEntry // Using timestamp as unique key for log entry
                         });
-                        
+
                         console.log(`Updated leaderboard account: ${account.riotId}`);
                     }
                 } catch (error) {
                     console.error(`Error updating leaderboard account ${account.riotId}:`, error.message);
                 }
             }));
-            
+
             // Wait 60s between batches to respect rate limit
             if (i + batchSize < accounts.length) {
                 await sleep(60000);
             }
         }
-        
+
         // Calculate and update next scheduled update time (1 hour from now)
         const nextUpdate = Date.now() + (60 * 60 * 1000); // Current time + 1 hour in milliseconds
         await update(ref(db), {
             nextScheduledUpdate: nextUpdate.toString()
         });
-        
+
         console.log('Leaderboard update completed. Next update scheduled for:', new Date(nextUpdate).toISOString());
     } catch (error) {
         console.error('Error in leaderboard update:', error);
