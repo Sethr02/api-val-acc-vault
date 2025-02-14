@@ -236,24 +236,41 @@ cron.schedule('0 * * * *', async () => {
                         const mmrData = response.data.data.current_data;
                         const currentAccount = account;
 
-                        const logEntry = {
-                            timestamp: new Date().toISOString(),
-                            oldRank: currentAccount.rank || 'Unknown',
-                            newRank: mmrData.currenttierpatched,
-                            oldRR: currentAccount.rr || 0,
-                            newRR: mmrData.ranking_in_tier
-                        };
+                        // Check if there are meaningful changes
+                        const hasRankChange = mmrData.currenttierpatched !== currentAccount.rank;
+                        const hasRRChange = mmrData.ranking_in_tier !== currentAccount.rr;
+                        const hasNameChange = response.data.data.name !== currentAccount.name;
+                        const hasTagChange = response.data.data.tag !== currentAccount.tag;
 
-                        // Update the account's MMR data in Firebase
-                        await update(ref(db, `leaderboard/${puuid}`), {
-                            rank: mmrData.currenttierpatched,
-                            rr: mmrData.ranking_in_tier,
-                            lastUpdated: new Date().toISOString(),
-                            updatesCounter: (currentAccount.updatesCounter || 0) + 1,
-                            [`logs/${Date.now()}`]: logEntry // Using timestamp as unique key for log entry
-                        });
+                        // Only update if there are meaningful changes
+                        if (hasRankChange || hasRRChange || hasNameChange || hasTagChange) {
+                            const logEntry = {
+                                timestamp: new Date().toISOString(),
+                                oldRank: currentAccount.rank || 'Unknown',
+                                newRank: mmrData.currenttierpatched,
+                                oldRR: currentAccount.rr || 0,
+                                newRR: mmrData.ranking_in_tier,
+                                oldName: currentAccount.name,
+                                newName: response.data.data.name,
+                                oldTag: currentAccount.tag,
+                                newTag: response.data.data.tag
+                            };
 
-                        console.log(`Updated leaderboard account: ${account.riotId}`);
+                            // Update the account's data in Firebase
+                            await update(ref(db, `leaderboard/${puuid}`), {
+                                rank: mmrData.currenttierpatched,
+                                rr: mmrData.ranking_in_tier,
+                                name: response.data.data.name,
+                                tag: response.data.data.tag,
+                                lastUpdated: new Date().toISOString(),
+                                updatesCounter: (currentAccount.updatesCounter || 0) + 1,
+                                [`logs/${Date.now()}`]: logEntry
+                            });
+
+                            console.log(`Updated leaderboard account: ${response.data.data.name}#${response.data.data.tag}`);
+                        } else {
+                            console.log(`No meaningful changes for account: ${currentAccount.riotId}`);
+                        }
                     }
                 } catch (error) {
                     console.error(`Error updating leaderboard account ${account.riotId}:`, error.message);
