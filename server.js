@@ -250,9 +250,9 @@ cron.schedule('0 * * * *', async () => {
                                 newRank: mmrData.currenttierpatched,
                                 oldRR: currentAccount.rr || 0,
                                 newRR: mmrData.ranking_in_tier,
-                                oldName: currentAccount.name,
+                                oldName: currentAccount.name || 'Unknown',
                                 newName: response.data.data.name,
-                                oldTag: currentAccount.tag,
+                                oldTag: currentAccount.tag || 'Unknown',
                                 newTag: response.data.data.tag
                             };
 
