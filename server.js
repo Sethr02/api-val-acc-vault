@@ -270,8 +270,8 @@ cron.schedule('0 * * * *', async () => {
                                 return; // Skip this update
                             }
 
-                            // Update the account's data in Firebase
-                            await update(ref(db, `leaderboard/${puuid}`), {
+                            // Prepare update data
+                            const updateData = {
                                 rank: mmrData.currenttierpatched,
                                 rr: mmrData.ranking_in_tier,
                                 name: response.data.data.name,
@@ -279,7 +279,16 @@ cron.schedule('0 * * * *', async () => {
                                 lastUpdated: new Date().toISOString(),
                                 updatesCounter: (currentAccount.updatesCounter || 0) + 1,
                                 [`logs/${Date.now()}`]: logEntry
-                            });
+                            };
+
+                            // Update riotId if name or tag changed
+                            if (hasNameChange || hasTagChange) {
+                                updateData.riotId = `${response.data.data.name}#${response.data.data.tag}`;
+                                console.log(`RiotID updated: ${currentAccount.riotId} -> ${updateData.riotId}`);
+                            }
+
+                            // Update the account's data in Firebase
+                            await update(ref(db, `leaderboard/${puuid}`), updateData);
 
                             console.log(`Updated leaderboard account: ${response.data.data.name}#${response.data.data.tag}`);
                         } else {
