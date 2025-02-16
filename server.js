@@ -242,19 +242,33 @@ cron.schedule('0 * * * *', async () => {
                         const hasNameChange = response.data.data.name !== currentAccount.name;
                         const hasTagChange = response.data.data.tag !== currentAccount.tag;
 
+                        console.log('Current account state:', {
+                            name: currentAccount.name,
+                            tag: currentAccount.tag,
+                            rank: currentAccount.rank,
+                            rr: currentAccount.rr
+                        });
+
                         // Only update if there are meaningful changes
                         if (hasRankChange || hasRRChange || hasNameChange || hasTagChange) {
                             const logEntry = {
                                 timestamp: new Date().toISOString(),
-                                oldRank: currentAccount.rank || 'Unknown',
-                                newRank: mmrData.currenttierpatched,
-                                oldRR: currentAccount.rr || 0,
-                                newRR: mmrData.ranking_in_tier,
-                                oldName: currentAccount.name || 'Unknown',
-                                newName: response.data.data.name,
-                                oldTag: currentAccount.tag || 'Unknown',
-                                newTag: response.data.data.tag
+                                oldRank: currentAccount.rank ?? 'Unknown',
+                                newRank: mmrData.currenttierpatched ?? 'Unknown',
+                                oldRR: typeof currentAccount.rr === 'number' ? currentAccount.rr : 0,
+                                newRR: mmrData.ranking_in_tier ?? 0,
+                                oldName: typeof currentAccount.name === 'string' ? currentAccount.name : 'Unknown',
+                                newName: response.data.data.name ?? 'Unknown',
+                                oldTag: typeof currentAccount.tag === 'string' ? currentAccount.tag : 'Unknown',
+                                newTag: response.data.data.tag ?? 'Unknown'
                             };
+
+                            const isValidLogEntry = Object.values(logEntry).every(value => value !== undefined);
+
+                            if (!isValidLogEntry) {
+                                console.error('Invalid log entry detected:', logEntry);
+                                return; // Skip this update
+                            }
 
                             // Update the account's data in Firebase
                             await update(ref(db, `leaderboard/${puuid}`), {
